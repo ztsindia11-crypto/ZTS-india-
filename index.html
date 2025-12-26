@@ -1,0 +1,669 @@
+**Bilkul! Main code 2 parts mein deta hoon!** 👍
+
+---
+
+## **PART 1 - PEHLA HALF (YEH COPY KARO):**
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="ZTS INDIA - Ultimate Indian-themed Battle Royale game with 7 unique characters, iconic locations, and intense survival gameplay!">
+    <title>ZTS INDIA - Battle Royale Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+        }
+        canvas {
+            cursor: crosshair;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .animate-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes bounce {
+            0%, 100% {
+                transform: translateY(-25%);
+                animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+            }
+            50% {
+                transform: translateY(0);
+                animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+            }
+        }
+        .animate-bounce {
+            animation: bounce 1s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const FreeFireIndia = () => {
+            const canvasRef = useRef(null);
+            const [gameState, setGameState] = useState('characterSelect');
+            const [selectedCharacter, setSelectedCharacter] = useState(null);
+            const [score, setScore] = useState(0);
+            const [kills, setKills] = useState(0);
+            const gameLoopRef = useRef(null);
+
+            const characters = [
+                { id: 1, name: 'Tanjo', type: 'boy', color: '#ff6b6b', skill: 'Fast Runner' },
+                { id: 2, name: 'Krishna', type: 'boy', color: '#4ecdc4', skill: 'Strong Fighter' },
+                { id: 3, name: 'Iris', type: 'boy', color: '#45b7d1', skill: 'Sharp Shooter' },
+                { id: 4, name: 'Devil', type: 'boy', color: '#f9ca24', skill: 'Quick Healer' },
+                { id: 5, name: 'Kaira', type: 'girl', color: '#ff69b4', skill: 'Silent Mover' },
+                { id: 6, name: 'Aurelia', type: 'girl', color: '#9b59b6', skill: 'Eagle Eye' },
+                { id: 7, name: 'Elara', type: 'girl', color: '#e74c3c', skill: 'Medic Pro' }
+            ];
+
+            const locations = [
+                { name: 'Taj Mahal', x: 200, y: 150, width: 100, height: 80, color: '#f5f5dc' },
+                { name: 'Lal Qila', x: 500, y: 180, width: 120, height: 90, color: '#8B0000' },
+                { name: 'Delhi House', x: 150, y: 400, width: 80, height: 70, color: '#CD853F' },
+                { name: 'Mumbai Villa', x: 600, y: 420, width: 90, height: 75, color: '#DAA520' },
+                { name: 'Bangalore Tower', x: 400, y: 350, width: 60, height: 100, color: '#708090' }
+            ];
+
+            const gameRef = useRef({
+                player: { x: 400, y: 300, health: 100, armor: 0, speed: 3, angle: 0, ammo: 30, hasWeapon: false },
+                enemies: [],
+                bullets: [],
+                particles: [],
+                lootBoxes: [],
+                safeZone: { x: 400, y: 300, radius: 380 },
+                targetZone: { x: 400, y: 300, radius: 180 },
+                shrinkTimer: 0,
+                keys: {},
+                mouse: { x: 0, y: 0 }
+            });
+
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                if (!canvas) return;
+
+                const handleKeyDown = (e) => {
+                    gameRef.current.keys[e.key.toLowerCase()] = true;
+                    if (e.key.toLowerCase() === 'r' && gameState === 'playing') {
+                        pickupNearbyLoot();
+                    }
+                };
+
+                const handleKeyUp = (e) => {
+                    gameRef.current.keys[e.key.toLowerCase()] = false;
+                };
+
+                const handleMouseMove = (e) => {
+                    const rect = canvas.getBoundingClientRect();
+                    gameRef.current.mouse.x = e.clientX - rect.left;
+                    gameRef.current.mouse.y = e.clientY - rect.top;
+                };
+
+                const handleClick = () => {
+                    if (gameState === 'playing') {
+                        shoot();
+                    }
+                };
+
+                window.addEventListener('keydown', handleKeyDown);
+                window.addEventListener('keyup', handleKeyUp);
+                canvas.addEventListener('mousemove', handleMouseMove);
+                canvas.addEventListener('click', handleClick);
+
+                return () => {
+                    window.removeEventListener('keydown', handleKeyDown);
+                    window.removeEventListener('keyup', handleKeyUp);
+                    canvas.removeEventListener('mousemove', handleMouseMove);
+                    canvas.removeEventListener('click', handleClick);
+                };
+            }, [gameState]);
+
+            const startGame = () => {
+                if (!selectedCharacter) return;
+
+                const game = gameRef.current;
+                const char = characters.find(c => c.id === selectedCharacter);
+                const speedBonus = char.skill === 'Fast Runner' ? 1 : 0;
+
+                game.player = {
+                    x: 400, y: 300, health: 100, armor: 0, speed: 3 + speedBonus,
+                    angle: 0, ammo: 30, hasWeapon: true, character: char
+                };
+                game.enemies = [];
+                game.bullets = [];
+                game.particles = [];
+                game.lootBoxes = [];
+                game.safeZone = { x: 400, y: 300, radius: 380 };
+                game.targetZone = { x: 400, y: 300, radius: 180 };
+                game.shrinkTimer = 0;
+
+                for (let i = 0; i < 10; i++) {
+                    spawnLootBox();
+                }
+
+                for (let i = 0; i < 12; i++) {
+                    spawnEnemy();
+                }
+
+                setScore(0);
+                setKills(0);
+                setGameState('playing');
+            };
+
+            const spawnLootBox = () => {
+                const game = gameRef.current;
+                game.lootBoxes.push({
+                    x: Math.random() * 750 + 25,
+                    y: Math.random() * 550 + 25,
+                    type: Math.random() > 0.5 ? 'weapon' : 'armor'
+                });
+            };
+
+            const pickupNearbyLoot = () => {
+                const game = gameRef.current;
+                const p = game.player;
+
+                for (let i = game.lootBoxes.length - 1; i >= 0; i--) {
+                    const box = game.lootBoxes[i];
+                    if (Math.hypot(p.x - box.x, p.y - box.y) < 30) {
+                        if (box.type === 'weapon') {
+                            p.hasWeapon = true;
+                            p.ammo += 20;
+                        } else {
+                            p.armor = Math.min(100, p.armor + 50);
+                        }
+                        game.lootBoxes.splice(i, 1);
+                        createParticles(box.x, box.y, '#ffd700');
+                    }
+                }
+            };
+
+            const spawnEnemy = () => {
+                const game = gameRef.current;
+                const angle = Math.random() * Math.PI * 2;
+                const distance = Math.random() * 300 + 100;
+                const enemyChar = characters[Math.floor(Math.random() * characters.length)];
+
+                game.enemies.push({
+                    x: 400 + Math.cos(angle) * distance,
+                    y: 300 + Math.sin(angle) * distance,
+                    health: 80,
+                    armor: Math.random() > 0.5 ? 30 : 0,
+                    speed: 1.2 + Math.random() * 0.5,
+                    shootTimer: Math.random() * 60,
+                    character: enemyChar
+                });
+            };
+
+            const shoot = () => {
+                const game = gameRef.current;
+                const p = game.player;
+
+                if (!p.hasWeapon || p.ammo <= 0) return;
+
+                p.ammo--;
+                const dx = game.mouse.x - p.x;
+                const dy = game.mouse.y - p.y;
+                const angle = Math.atan2(dy, dx);
+
+                const accuracy = p.character.skill === 'Sharp Shooter' ? 10 : 8;
+
+                game.bullets.push({
+                    x: p.x,
+                    y: p.y,
+                    vx: Math.cos(angle) * accuracy,
+                    vy: Math.sin(angle) * accuracy,
+                    isPlayer: true
+                });
+            };
+
+            const createParticles = (x, y, color) => {
+                const game = gameRef.current;
+                for (let i = 0; i < 10; i++) {
+                    const angle = (Math.PI * 2 * i) / 10;
+                    game.particles.push({
+                        x, y,
+                        vx: Math.cos(angle) * 3,
+                        vy: Math.sin(angle) * 3,
+                        life: 30,
+                        color
+                    });
+                }
+            };
+            const updateGame = () => {
+                const game = gameRef.current;
+                const ctx = canvasRef.current?.getContext('2d');
+                if (!ctx || gameState !== 'playing') return;
+
+                ctx.fillStyle = '#2d5016';
+                ctx.fillRect(0, 0, 800, 600);
+
+                locations.forEach(loc => {
+                    ctx.fillStyle = loc.color;
+                    ctx.fillRect(loc.x, loc.y, loc.width, loc.height);
+                    ctx.strokeStyle = '#000';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(loc.x, loc.y, loc.width, loc.height);
+
+                    ctx.fillStyle = '#000';
+                    ctx.font = '10px Arial';
+                    ctx.fillText(loc.name, loc.x + 5, loc.y - 5);
+
+                    for (let i = 0; i < 3; i++) {
+                        for (let j = 0; j < 2; j++) {
+                            ctx.fillStyle = '#87ceeb';
+                            ctx.fillRect(loc.x + 10 + i * 25, loc.y + 15 + j * 25, 15, 15);
+                        }
+                    }
+                });
+
+                game.shrinkTimer++;
+                if (game.shrinkTimer > 180) {
+                    game.safeZone.radius = Math.max(game.targetZone.radius, game.safeZone.radius - 0.3);
+
+                    if (game.safeZone.radius <= game.targetZone.radius + 1) {
+                        game.shrinkTimer = 0;
+                        const angle = Math.random() * Math.PI * 2;
+                        const distance = Math.random() * 80;
+                        game.targetZone.x = 400 + Math.cos(angle) * distance;
+                        game.targetZone.y = 300 + Math.sin(angle) * distance;
+                        game.targetZone.radius = Math.max(100, game.targetZone.radius - 15);
+                    }
+                }
+
+                ctx.strokeStyle = 'rgba(0, 120, 255, 0.4)';
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.arc(game.safeZone.x, game.safeZone.y, game.safeZone.radius, 0, Math.PI * 2);
+                ctx.stroke();
+
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([8, 8]);
+                ctx.beginPath();
+                ctx.arc(game.targetZone.x, game.targetZone.y, game.targetZone.radius, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                game.lootBoxes.forEach(box => {
+                    ctx.fillStyle = box.type === 'weapon' ? '#ffd700' : '#00ffff';
+                    ctx.fillRect(box.x - 8, box.y - 8, 16, 16);
+                    ctx.strokeStyle = '#000';
+                    ctx.strokeRect(box.x - 8, box.y - 8, 16, 16);
+                });
+
+                const p = game.player;
+                if (game.keys['w']) p.y -= p.speed;
+                if (game.keys['s']) p.y += p.speed;
+                if (game.keys['a']) p.x -= p.speed;
+                if (game.keys['d']) p.x += p.speed;
+
+                p.x = Math.max(20, Math.min(780, p.x));
+                p.y = Math.max(20, Math.min(580, p.y));
+
+                const dx = game.mouse.x - p.x;
+                const dy = game.mouse.y - p.y;
+                p.angle = Math.atan2(dy, dx);
+
+                const distFromCenter = Math.hypot(p.x - game.safeZone.x, p.y - game.safeZone.y);
+                if (distFromCenter > game.safeZone.radius) {
+                    if (p.armor > 0) {
+                        p.armor -= 0.3;
+                    } else {
+                        p.health -= 0.5;
+                    }
+                }
+
+                game.enemies = game.enemies.filter(e => {
+                    const dx = p.x - e.x;
+                    const dy = p.y - e.y;
+                    const dist = Math.hypot(dx, dy);
+
+                    if (dist > 180) {
+                        e.x += (dx / dist) * e.speed;
+                        e.y += (dy / dist) * e.speed;
+                    }
+
+                    const enemyDistFromCenter = Math.hypot(e.x - game.safeZone.x, e.y - game.safeZone.y);
+                    if (enemyDistFromCenter > game.safeZone.radius) {
+                        if (e.armor > 0) {
+                            e.armor -= 0.2;
+                        } else {
+                            e.health -= 0.4;
+                        }
+                    }
+
+                    e.shootTimer--;
+                    if (e.shootTimer <= 0 && dist < 350) {
+                        const angle = Math.atan2(dy, dx);
+                        game.bullets.push({
+                            x: e.x,
+                            y: e.y,
+                            vx: Math.cos(angle) * 6,
+                            vy: Math.sin(angle) * 6,
+                            isPlayer: false
+                        });
+                        e.shootTimer = 90 + Math.random() * 60;
+                    }
+
+                    return e.health > 0;
+                });
+
+                game.bullets = game.bullets.filter(b => {
+                    b.x += b.vx;
+                    b.y += b.vy;
+
+                    if (b.x < 0 || b.x > 800 || b.y < 0 || b.y > 600) return false;
+
+                    if (b.isPlayer) {
+                        for (let i = game.enemies.length - 1; i >= 0; i--) {
+                            const e = game.enemies[i];
+                            if (Math.hypot(b.x - e.x, b.y - e.y) < 18) {
+                                const damage = 25;
+                                if (e.armor > 0) {
+                                    e.armor = Math.max(0, e.armor - damage / 2);
+                                } else {
+                                    e.health -= damage;
+                                }
+                                createParticles(e.x, e.y, '#ff0000');
+                                if (e.health <= 0) {
+                                    setKills(k => k + 1);
+                                    setScore(s => s + 100);
+                                    if (Math.random() > 0.7) spawnLootBox();
+                                }
+                                return false;
+                            }
+                        }
+                    } else {
+                        if (Math.hypot(b.x - p.x, b.y - p.y) < 18) {
+                            const damage = 15;
+                            if (p.armor > 0) {
+                                p.armor = Math.max(0, p.armor - damage / 2);
+                            } else {
+                                p.health -= damage;
+                            }
+                            createParticles(p.x, p.y, '#ff0000');
+                            return false;
+                        }
+                    }
+
+                    return true;
+                });
+
+                game.particles = game.particles.filter(part => {
+                    part.x += part.vx;
+                    part.y += part.vy;
+                    part.life--;
+                    return part.life > 0;
+                });
+
+                game.particles.forEach(part => {
+                    ctx.fillStyle = part.color;
+                    ctx.globalAlpha = part.life / 30;
+                    ctx.fillRect(part.x - 3, part.y - 3, 6, 6);
+                });
+                ctx.globalAlpha = 1;
+
+                game.bullets.forEach(b => {
+                    ctx.fillStyle = b.isPlayer ? '#ffff00' : '#ff4444';
+                    ctx.beginPath();
+                    ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+                game.enemies.forEach(e => {
+                    ctx.save();
+                    ctx.translate(e.x, e.y);
+                    ctx.fillStyle = e.character.color;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 14, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = '#000';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    ctx.restore();
+
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(e.x - 20, e.y - 25, 40, 4);
+                    ctx.fillStyle = '#ff0000';
+                    ctx.fillRect(e.x - 20, e.y - 25, 40 * (e.health / 80), 4);
+
+                    if (e.armor > 0) {
+                        ctx.fillStyle = '#00ffff';
+                        ctx.fillRect(e.x - 20, e.y - 30, 40 * (e.armor / 100), 3);
+                    }
+                });
+
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.angle);
+                ctx.fillStyle = p.character.color;
+                ctx.beginPath();
+                ctx.arc(0, 0, 16, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                if (p.hasWeapon) {
+                    ctx.fillStyle = '#333';
+                    ctx.fillRect(10, -3, 18, 6);
+                }
+                ctx.restore();
+
+                ctx.fillStyle = '#000';
+                ctx.fillRect(p.x - 25, p.y - 30, 50, 5);
+                ctx.fillStyle = '#00ff00';
+                ctx.fillRect(p.x - 25, p.y - 30, 50 * (p.health / 100), 5);
+
+                if (p.armor > 0) {
+                    ctx.fillStyle = '#00ffff';
+                    ctx.fillRect(p.x - 25, p.y - 36, 50 * (p.armor / 100), 4);
+                }
+
+                if (p.health <= 0) {
+                    setGameState('gameOver');
+                } else if (game.enemies.length === 0) {
+                    setGameState('won');
+                }
+            };
+
+            useEffect(() => {
+                if (gameState === 'playing') {
+                    gameLoopRef.current = setInterval(updateGame, 1000 / 60);
+                } else {
+                    if (gameLoopRef.current) clearInterval(gameLoopRef.current);
+                }
+
+                return () => {
+                    if (gameLoopRef.current) clearInterval(gameLoopRef.current);
+                };
+            }, [gameState]);
+
+            return (
+                <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-orange-600 via-white to-green-600 p-4">
+                    {gameState === 'characterSelect' && (
+                        <div className="bg-black bg-opacity-90 p-8 rounded-2xl max-w-4xl">
+                            <h1 className="text-5xl font-bold text-center mb-2 bg-gradient-to-r from-orange-500 via-white to-green-500 bg-clip-text text-transparent">
+                                🇮🇳 ZTS INDIA 🇮🇳
+                            </h1>
+                            <p className="text-white text-center mb-8 text-xl">Select Your Character</p>
+
+                            <div className="grid grid-cols-4 gap-4 mb-8">
+                                {characters.map(char => (
+                                    <div
+                                        key={char.id}
+                                        onClick={() => setSelectedCharacter(char.id)}
+                                        style={{
+                                            cursor: 'pointer',
+                                            padding: '1rem',
+                                            borderRadius: '0.5rem',
+                                            textAlign: 'center',
+                                            transition: 'all 0.3s',
+                                            transform: selectedCharacter === char.id ? 'scale(1.1)' : 'scale(1)',
+                                            backgroundColor: selectedCharacter === char.id ? '#fbbf24' : '#374151',
+                                            border: selectedCharacter === char.id ? '4px solid #fcd34d' : 'none'
+                                        }}
+                                    >
+                                        <div
+                                            style={{
+                                                width: '4rem',
+                                                height: '4rem',
+                                                borderRadius: '50%',
+                                                margin: '0 auto 0.5rem',
+                                                backgroundColor: char.color
+                                            }}
+                                        />
+                                        <p style={{ color: 'white', fontWeight: 'bold' }}>{char.name}</p>
+                                        <p style={{ color: '#d1d5db', fontSize: '0.75rem' }}>{char.type}</p>
+                                        <p style={{ color: '#fcd34d', fontSize: '0.75rem', marginTop: '0.25rem' }}>{char.skill}</p>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <button
+                                onClick={startGame}
+                                disabled={!selectedCharacter}
+                                style={{
+                                    width: '100%',
+                                    fontSize: '1.5rem',
+                                    fontWeight: 'bold',
+                                    padding: '1rem',
+                                    borderRadius: '0.5rem',
+                                    transition: 'all 0.3s',
+                                    background: selectedCharacter ? 'linear-gradient(to right, #f97316, #16a34a)' : '#4b5563',
+                                    color: selectedCharacter ? 'white' : '#9ca3af',
+                                    cursor: selectedCharacter ? 'pointer' : 'not-allowed',
+                                    border: 'none'
+                                }}
+                            >
+                                {selectedCharacter ? '🎮 START BATTLE 🎮' : 'SELECT A CHARACTER'}
+                            </button>
+                        </div>
+                    )}
+
+                    {gameState !== 'characterSelect' && (
+                        <>
+                            <div className="mb-4 flex gap-4 text-white flex-wrap justify-center">
+                                <div className="flex items-center gap-2 bg-black bg-opacity-70 px-4 py-2 rounded-lg">
+                                    <span className="font-bold">Score: {score}</span>
+                                </div>
+                                <div className="flex items-center gap-2 bg-black bg-opacity-70 px-4 py-2 rounded-lg">
+                                    <span className="font-bold">Kills: {kills}</span>
+                                </div>
+                                <div className="flex items-center gap-2 bg-black bg-opacity-70 px-4 py-2 rounded-lg">
+                                    <span className="font-bold">Enemies: {gameRef.current.enemies.length}</span>
+                                </div>
+                                <div className="flex items-center gap-2 bg-black bg-opacity-70 px-4 py-2 rounded-lg">
+                                    <span className="font-bold">Ammo: {gameRef.current.player.ammo}</span>
+                                </div>
+                            </div>
+
+                            <div style={{ position: 'relative' }}>
+                                <canvas
+                                    ref={canvasRef}
+                                    width={800}
+                                    height={600}
+                                    style={{
+                                        border: '4px solid #f97316',
+                                        borderRadius: '0.5rem',
+                                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+                                    }}
+                                />
+
+                                {gameState === 'gameOver' && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        inset: 0,
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                                        borderRadius: '0.5rem'
+                                    }}>
+                                        <h2 style={{ fontSize: '3rem', fontWeight: 'bold', color: '#ef4444', marginBottom: '1rem' }}>💀 ELIMINATED! 💀</h2>
+                                        <p style={{ color: 'white', fontSize: '1.5rem', marginBottom: '0.5rem' }}>Final Score: {score}</p>
+                                        <p style={{ color: 'white', fontSize: '1.25rem', marginBottom: '2rem' }}>Kills: {kills}</p>
+                                        <button
+                                            onClick={() => setGameState('characterSelect')}
+                                            style={{
+                                                backgroundColor: '#ef4444',
+                                                color: 'white',
+                                                fontWeight: 'bold',
+                                                fontSize: '1.25rem',
+                                                padding: '0.75rem 2.5rem',
+                                                borderRadius: '0.5rem',
+                                                border: 'none',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            BACK TO LOBBY
+                                        </button>
+                                    </div>
+                                )}
+
+                                {gameState === 'won' && (
+                                    <div style={{
+                                        position: 'absolute',
+                                        inset: 0,
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+                                        borderRadius: '0.5rem'
+                                    }}>
+                                        <div style={{ fontSize: '6rem', marginBottom: '1rem' }} className="animate-bounce">🏆</div>
+                                        <h2 style={{ fontSize: '3rem', fontWeight: 'bold', color: '#fbbf24', marginBottom: '1rem' }}>🎉 BOOYAH! 🎉</h2>
+                                        <p style={{ color: 'white', fontSize: '1.5rem', marginBottom: '0.5rem' }}>Final Score: {score}</p>
+                                        <p style={{ color: 'white', fontSize: '1.25rem', marginBottom: '2rem' }}>Total Kills: {kills}</p>
+                                        <button
+                                            onClick={() => setGameState('characterSelect')}
+                                            style={{
+                                                backgroundColor: '#fbbf24',
+                                                color: 'black',
+                                                fontWeight: 'bold',
+                                                fontSize: '1.25rem',
+                                                padding: '0.75rem 2.5rem',
+                                                borderRadius: '0.5rem',
+                                                border: 'none',
+                                                cursor: 'pointer'
+         }}
+                                        >
+                                            PLAY AGAIN
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="mt-4 text-white bg-black bg-opacity-70 px-6 py-3 rounded-lg">
+                                <p style={{ textAlign: 'center' }}>
+                                    <span style={{ fontWeight: 'bold' }}>Controls:</span> WASD - Move | Mouse - Aim | Click - Shoot | R - Pick Loot
+                                </p>
+                            </div>
+                        </>
+                    )}
+                </div>
+            );
+        };
+
+        ReactDOM.render(<FreeFireIndia />, document.getElementById('root'));
+    </script>
+</body>
+</html>
