@@ -1,0 +1,229 @@
+genesis-ai/
+└── backend/
+    ├── main.py
+    ├── config.py
+    ├── auth.py
+    ├── Dockerfile
+    │
+    ├── agents/
+    │   ├── planner_agent.py
+    │   ├── game_agent.py
+    │   ├── asset_agent.py
+    │   ├── builder_agent.py
+    │   └── app_agent.py
+    │
+    ├── prompts/
+    │   ├── planner.txt
+    │   ├── unity_game.txt
+    │   ├── asset_gen.txt
+    │   └── flutter_app.txt
+    │
+    ├── memory/
+    │   ├── vector_store.py
+    │   └── memory_agent.py
+    │
+    └── scripts/
+        ├── create_unity_project.py
+        ├── build_unity.py
+        └── build_android.py
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+MODEL = "gpt-4o"
+You are a Planner AI for an AI system that generates GAMES and APPS.
+
+Return ONLY valid JSON.
+
+{
+  "type": "game/app",
+  "engine": "",
+  "platform": [],
+  "genre_or_category": "",
+  "agents_required": [],
+  "build_targets": []
+}
+from openai import OpenAI
+from config import OPENAI_API_KEY, MODEL
+import json
+
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+def run_planner(user_prompt: str) -> dict:
+    with open("prompts/planner.txt") as f:
+        system_prompt = f.read()
+
+    res = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        temperature=0.2
+    )
+    return json.loads(res.choices[0].message.content)
+Generate Unity 3D C# scripts.
+Return ONLY JSON.
+
+{
+  "scripts": [
+    { "filename": "PlayerController.cs", "code": "" },
+    { "filename": "CameraController.cs", "code": "" }
+  ]
+}
+from openai import OpenAI
+from config import OPENAI_API_KEY, MODEL
+import json
+
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+def run_game_agent(plan: dict) -> dict:
+    with open("prompts/unity_game.txt") as f:
+        system_prompt = f.read()
+
+    user_prompt = f"""
+    Genre: {plan['genre_or_category']}
+    Platform: {plan['platform']}
+    """
+
+    res = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+    )
+    return json.loads(res.choices[0].message.content)
+Return ONLY JSON.
+
+{
+  "assets": [
+    {
+      "name": "",
+      "type": "",
+      "style": "",
+      "purpose": ""
+    }
+  ]
+}
+from openai import OpenAI
+from config import OPENAI_API_KEY, MODEL
+import json
+
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+def run_asset_agent(plan: dict) -> dict:
+    with open("prompts/asset_gen.txt") as f:
+        system_prompt = f.read()
+
+    user_prompt = f"""
+    Game: {plan['genre_or_category']}
+    Platform: {plan['platform']}
+    """
+
+    res = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+    )
+    return json.loads(res.choices[0].message.content)
+import os, json
+
+def run_builder(game_scripts, assets):
+    os.makedirs("output/UnityProject/Assets/Scripts", exist_ok=True)
+
+    for s in game_scripts["scripts"]:
+        with open(f"output/UnityProject/Assets/Scripts/{s['filename']}", "w") as f:
+            f.write(s["code"])
+
+    with open("output/UnityProject/Assets/assets.json", "w") as f:
+        json.dump(assets, f, indent=2)
+
+    return {"status": "project prepared"}
+Return ONLY JSON.
+
+{
+  "files": [
+    {
+      "path": "lib/main.dart",
+      "code": ""
+    }
+  ]
+}
+from openai import OpenAI
+from config import OPENAI_API_KEY, MODEL
+import json
+
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+def run_app_agent(plan: dict):
+    with open("prompts/flutter_app.txt") as f:
+        system_prompt = f.read()
+
+    res = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": plan["genre_or_category"]}
+        ]
+    )
+    return json.loads(res.choices[0].message.content)
+import faiss
+from sentence_transformers import SentenceTransformer
+
+model = SentenceTransformer("all-MiniLM-L6-v2")
+index = faiss.IndexFlatL2(384)
+data = []
+
+def add(text):
+    vec = model.encode([text])
+    index.add(vec)
+    data.append(text)
+
+def search(q):
+    if not data:
+        return []
+    vec = model.encode([q])
+    _, ids = index.search(vec, 3)
+    return [data[i] for i in ids[0]]
+from .vector_store import add, search
+
+def remember(t): add(t)
+def recall(t): return search(t)
+users = {"demo": {"password": "1234", "credits": 5}}
+
+def login(u, p):
+    return u in users and users[u]["password"] == p
+from fastapi import FastAPI
+from agents.planner_agent import run_planner
+from agents.game_agent import run_game_agent
+from agents.asset_agent import run_asset_agent
+from agents.builder_agent import run_builder
+from agents.app_agent import run_app_agent
+from memory.memory_agent import remember
+
+app = FastAPI()
+
+@app.post("/generate")
+def generate(prompt: str):
+    remember(prompt)
+    plan = run_planner(prompt)
+
+    if plan["type"] == "game":
+        gs = run_game_agent(plan)
+        a = run_asset_agent(plan)
+        return run_builder(gs, a)
+
+    if plan["type"] == "app":
+        return run_app_agent(plan)
+
+    return {"error": "unknown"}
+FROM python:3.10
+WORKDIR /app
+COPY . .
+RUN pip install fastapi uvicorn openai python-dotenv faiss-cpu sentence-transformers
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
