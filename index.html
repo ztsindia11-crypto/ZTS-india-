@@ -1,22 +1,98 @@
- val model = Firebase.ai(
-  backend = GenerativeBackend.googleAI()
-).generativeModel(
-  modelName = "gemini-3-pro-preview",
-  generationConfig = generationConfig {
-    thinkingConfig = thinkingConfig {
-      includeThoughts = true
-    }
-    temperature = 1.0f
-  }
-)
+ import random
+import time
 
-val response = model.generateContent(
-  "You roll two dice. What’s the probability they add up to 7?"
-)
+# Game setup
+map_size = 10
+players = [
+    {"name": "You", "hp": 100, "pos": [5, 5], "weapon": "Pistol", "ammo": 10},
+    {"name": "AI Player", "hp": 100, "pos": [random.randint(0,9), random.randint(0,9)], "weapon": "Shotgun", "ammo": 5}
+]
+safe_zone = [0, 9, 0, 9]  # [min_x, max_x, min_y, max_y]
+loot_spots = [(2,2), (7,7)]  # Example loot locations
 
-response.thoughtSummary?.let {
-  println("Thought Summary: $it")
-}
-response.text?.let {
-  println("Answer: $it")
-} 
+def is_in_safe_zone(pos):
+    return safe_zone[0] <= pos[0] <= safe_zone[1] and safe_zone[2] <= pos[1] <= safe_zone[3]
+
+def shrink_zone():
+    global safe_zone
+    safe_zone[0] += 1
+    safe_zone[1] -= 1
+    safe_zone[2] += 1
+    safe_zone[3] -= 1
+    print("Safe zone shrinking! Move to the center.")
+
+def loot(player):
+    if player["pos"] in loot_spots:
+        item = random.choice(["Ammo", "Health Kit", "Rifle"])
+        if item == "Ammo":
+            player["ammo"] += 5
+        elif item == "Health Kit":
+            player["hp"] = min(100, player["hp"] + 20)
+        elif item == "Rifle":
+            player["weapon"] = "Rifle"
+        print(f"{player['name']} looted a {item}!")
+        loot_spots.remove(player["pos"])  # Remove spot after looting
+
+def attack(attacker, target):
+    if attacker["ammo"] > 0:
+        damage = random.randint(10, 30) if attacker["weapon"] == "Pistol" else random.randint(20, 50)
+        target["hp"] -= damage
+        attacker["ammo"] -= 1
+        print(f"{attacker['name']} shot {target['name']} for {damage} damage! {target['name']} has {target['hp']} HP left.")
+        if target["hp"] <= 0:
+            print(f"{target['name']} eliminated!")
+            return True
+    else:
+        print(f"{attacker['name']} out of ammo!")
+    return False
+
+# Game loop
+turn = 0
+while len([p for p in players if p["hp"] > 0]) > 1:
+    turn += 1
+    print(f"\n--- Turn {turn} ---")
+    
+    # Shrink zone every 3 turns
+    if turn % 3 == 0:
+        shrink_zone()
+    
+    for i, player in enumerate(players):
+        if player["hp"] <= 0:
+            continue
+        
+        # Check if in safe zone
+        if not is_in_safe_zone(player["pos"]):
+            player["hp"] -= 10
+            print(f"{player['name']} is outside the safe zone! HP: {player['hp']}")
+            if player["hp"] <= 0:
+                print(f"{player['name']} died from the storm!")
+                continue
+        
+        loot(player)
+        
+        if player["name"] == "You":
+            # Human input
+            action = input("Move (N/S/E/W) or Attack (A): ").upper()
+            if action in ["N", "S", "E", "W"]:
+                if action == "N" and player["pos"][1] < 9:
+                    player["pos"][1] += 1
+                # Add similar for S, E, W
+                print(f"You moved to {player['pos']}")
+            elif action == "A":
+                target = players[1] if i == 0 else players[0]
+                attack(player, target)
+        else:
+            # AI actions
+            if random.random() > 0.5:
+                # Random move
+                direction = random.choice(["N", "S", "E", "W"])
+                # Implement move logic
+                print(f"{player['name']} moved.")
+            else:
+                attack(player, players[0])
+    
+    time.sleep(1)  # Pause for readability
+
+# Winner
+winner = [p for p in players if p["hp"] > 0][0]
+print(f"\n{winner['name']} wins!")
