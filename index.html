@@ -1,0 +1,22 @@
+ val model = Firebase.ai(
+  backend = GenerativeBackend.googleAI()
+).generativeModel(
+  modelName = "gemini-3-pro-preview",
+  generationConfig = generationConfig {
+    thinkingConfig = thinkingConfig {
+      includeThoughts = true
+    }
+    temperature = 1.0f
+  }
+)
+
+val response = model.generateContent(
+  "You roll two dice. What’s the probability they add up to 7?"
+)
+
+response.thoughtSummary?.let {
+  println("Thought Summary: $it")
+}
+response.text?.let {
+  println("Answer: $it")
+} 
