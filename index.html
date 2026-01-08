@@ -1,4 +1,108 @@
- import random
+import random
+import time
+
+# Game setup with refinements
+map_size = 10
+players = [
+    {"name": "You", "hp": 100, "pos": [5, 5], "weapon": "Pistol", "ammo": 10, "team": "Solo"},
+    {"name": "AI Player", "hp": 100, "pos": [random.randint(0,9), random.randint(0,9)], "weapon": "Shotgun", "ammo": 5, "team": "Solo"}
+]
+safe_zone = [0, 9, 0, 9]
+loot_spots = [(2,2), (7,7), (4,4)]  # Added more loot
+
+def is_in_safe_zone(pos):
+    return safe_zone[0] <= pos[0] <= safe_zone[1] and safe_zone[2] <= pos[1] <= safe_zone[3]
+
+def shrink_zone():
+    global safe_zone
+    safe_zone[0] += 1
+    safe_zone[1] -= 1
+    safe_zone[2] += 1
+    safe_zone[3] -= 1
+    print("Safe zone shrinking! Move to the center.")
+
+def loot(player):
+    if player["pos"] in loot_spots:
+        item = random.choice(["Ammo", "Health Kit", "Rifle", "Shield"])
+        if item == "Ammo":
+            player["ammo"] += 5
+        elif item == "Health Kit":
+            player["hp"] = min(100, player["hp"] + 20)
+        elif item == "Rifle":
+            player["weapon"] = "Rifle"
+        elif item == "Shield":
+            player["hp"] += 10  # Extra defense
+        print(f"{player['name']} looted a {item}!")
+        loot_spots.remove(player["pos"])
+
+def attack(attacker, target):
+    if attacker["ammo"] > 0:
+        damage = random.randint(10, 30) if attacker["weapon"] == "Pistol" else random.randint(20, 50)
+        # Dodge chance: 20% for defender
+        if random.random() < 0.2:
+            print(f"{target['name']} dodged the attack!")
+            return False
+        target["hp"] -= damage
+        attacker["ammo"] -= 1
+        print(f"{attacker['name']} shot {target['name']} for {damage} damage! {target['name']} has {target['hp']} HP left.")
+        if target["hp"] <= 0:
+            print(f"{target['name']} eliminated!")
+            return True
+    else:
+        print(f"{attacker['name']} out of ammo!")
+    return False
+
+# Game loop
+turn = 0
+while len([p for p in players if p["hp"] > 0]) > 1:
+    turn += 1
+    print(f"\n--- Turn {turn} ---")
+    
+    if turn % 3 == 0:
+        shrink_zone()
+    
+    for i, player in enumerate(players):
+        if player["hp"] <= 0:
+            continue
+        
+        if not is_in_safe_zone(player["pos"]):
+            player["hp"] -= 10
+            print(f"{player['name']} is outside the safe zone! HP: {player['hp']}")
+            if player["hp"] <= 0:
+                print(f"{player['name']} died from the storm!")
+                continue
+        
+        loot(player)
+        
+        if player["name"] == "You":
+            action = input("Move (N/S/E/W) or Attack (A): ").upper()
+            if action in ["N", "S", "E", "W"]:
+                # Simplified movement (add bounds checking)
+                if action == "N" and player["pos"][1] < 9:
+                    player["pos"][1] += 1
+                elif action == "S" and player["pos"][1] > 0:
+                    player["pos"][1] -= 1
+                elif action == "E" and player["pos"][0] < 9:
+                    player["pos"][0] += 1
+                elif action == "W" and player["pos"][0] > 0:
+                    player["pos"][0] -= 1
+                print(f"You moved to {player['pos']}")
+            elif action == "A":
+                target = players[1] if i == 0 else players[0]
+                attack(player, target)
+        else:
+            # Improved AI: 50% move, 50% attack if close
+            if random.random() > 0.5 or abs(player["pos"][0] - players[0]["pos"][0]) + abs(player["pos"][1] - players[0]["pos"][1]) > 3:
+                direction = random.choice(["N", "S", "E", "W"])
+                # Implement move (similar to above)
+                print(f"{player['name']} moved.")
+            else:
+                attack(player, players[0])
+    
+    time.sleep(1)
+
+winner = [p for p in players if p["hp"] > 0][0]
+print(f"\n{winner['name']} wins!") import random
 import time
 
 # Game setup
